@@ -1,30 +1,52 @@
 import { useState, useEffect } from 'react';
-import { socket } from '../App';
+// import { socket } from '../App';
+import css from './chat.module.css';
 
-export const Chat = () => {
+type messageType = {
+  messageUser: string;
+  userName: string;
+};
+
+type chatProps = {
+  socket: any;
+  userName: string;
+  isLoggedin: boolean;
+};
+
+type onlineUsers = {
+  id: number;
+  userName: string;
+};
+export const Chat = ({ socket, userName, isLoggedin }: chatProps) => {
   const [messageUser, setMessageUser] = useState('');
-  const [messagesArr, setMessagesArr] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [userName, setUserName] = useState('');
+  const [messagesArr, setMessagesArr] = useState<messageType[]>([]);
+  const [users, setUsers] = useState<onlineUsers[] | []>([]);
+  const [activeUsers, setActiveUsers] = useState(0);
+  const [chatUsers, setChatUsers] = useState<string[] | number[]>([]);
 
   useEffect(() => {
-    socket.on('message', message => {
-      console.log(`Received message from server: ${message}`);
+    socket.on('message', (message: messageType) => {
       setMessagesArr(prevValue => [...prevValue, message]);
     });
 
-    // socket.on('user', data => {
-    //   console.log(data);
-    //   setUsers(data);
-    // });
+    socket.on('activeUsers', (usersLogged: number) => {
+      setActiveUsers(usersLogged);
+    });
+
+    socket.on('onlineUsers', (data: any) => {
+      console.log(data);
+      setUsers(data);
+    });
 
     return () => {
       socket.off('message');
       socket.off('user');
+      socket.emit('leave');
+      socket.close();
     };
   }, []);
 
-  const handleSubmit = event => {
+  const handleSubmit = (event: any) => {
     event.preventDefault();
 
     if (messageUser.trim() !== '') {
@@ -36,20 +58,37 @@ export const Chat = () => {
     }
   };
 
+  const handleUserSelection = (userId: any) => {
+    if (chatUsers.includes(userId)) {
+      setChatUsers(chatUsers.filter(id => id !== userId));
+    } else {
+      setChatUsers([...chatUsers, userId]);
+    }
+  };
+  const startChat = () => {
+    setChatUsers([]);
+  };
   return (
     <div>
+      <button onClick={() => console.log(userName)}>CHECK USERS</button>
       <h2>Users</h2>
-      {/* {users.map((user, index) => (
-        <p key={index}>{user}</p>
-      ))} */}
+      <div>
+        {users &&
+          users.map(user => (
+            <div key={user.id}>
+              <input
+                type="checkbox"
+                onChange={() => handleUserSelection(user.id)}
+                checked={chatUsers.includes(user.id)}
+              />
+              {user.userName}
+            </div>
+          ))}
+
+        <button onClick={startChat}>Rozpocznij nowy czat</button>
+      </div>
+      <p>Users on chat: {activeUsers}</p>
       <form onSubmit={handleSubmit}>
-        <input
-          name="userName"
-          type="text"
-          placeholder="Enter your name"
-          value={userName}
-          onChange={e => setUserName(e.target.value)}
-        />
         <input
           name="userMessage"
           type="text"
@@ -61,8 +100,8 @@ export const Chat = () => {
       </form>
 
       {messagesArr.map((message, index) => (
-        <div key={index}>
-          <p>{message.userName}</p>
+        <div className={css.messageBox} key={index}>
+          <p>{message.userName}:</p>
           <p>{message.messageUser}</p>
         </div>
       ))}

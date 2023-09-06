@@ -1,23 +1,44 @@
 import { io } from 'socket.io-client';
 import { Chat } from './components/chat';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
-export const socket = io('http://localhost:3001');
+export let socket: any;
 const App = () => {
+  const [isLoggedin, setIsLoggedIn] = useState(false);
+  const [socketReady, setSocketReady] = useState(false);
+  const [userName, setUsername] = useState('');
   useEffect(() => {
-    window.addEventListener('beforeunload', handleWindowClose);
+    if (isLoggedin) {
+      socket = io('http://localhost:3001', { query: { userName } });
+      socket.emit('join');
+
+      if (socket !== undefined) setSocketReady(true);
+    } 
+    
 
     return () => {
-      window.removeEventListener('beforeunload', handleWindowClose);
+      if (isLoggedin) {
+        socket.emit('leave');
+        socket.close();
+      }
     };
-  }, []);
+  }, [isLoggedin]);
 
-  const handleWindowClose = () => {
-    socket.close();
-  };
   return (
     <div>
-      <Chat />
+      <input
+        name="userName"
+        type="text"
+        placeholder="Enter your username"
+        value={userName}
+        onChange={e => setUsername(e.target.value)}
+      />
+      <button onClick={() => setIsLoggedIn(true)}>LOGIN</button>
+      {isLoggedin && <p>Logged</p>}
+      {!isLoggedin && <p>No loged</p>}
+      {isLoggedin && socketReady && (
+        <Chat socket={socket} userName={userName} isLoggedin={isLoggedin} />
+      )}
     </div>
   );
 };

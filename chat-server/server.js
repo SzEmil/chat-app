@@ -10,11 +10,8 @@ import { createServer } from 'http';
 import http from 'http'; // Dodajemy moduł http
 
 const app = express();
+import './config/config-passport.js';
 
-// const server = createServer(app);
-// const socketio = new Server(server, {
-//   path: '/socket.io',
-// });
 const httpServer = http.createServer(app); // Tworzymy serwer HTTP
 
 const io = new Server(httpServer, {
@@ -37,37 +34,53 @@ app.use(express.static(path.join(process.cwd(), 'public')));
 app.use('/api', router);
 
 const users = {};
+const rooms = {};
+
+function updateOnlineUsers() {
+  const onlineUsers = Object.values(users);
+  io.emit('onlineUsers', onlineUsers);
+}
 
 io.on('connection', client => {
-  console.log('New client connected');
-
-  const numberOfClients = io.engine.clientsCount;
-  console.log(`Number of connected clients: ${numberOfClients}`);
+  const userName = client.handshake.query.userName;
 
   const broadcast = (event, data) => {
     client.emit(event, data);
     client.broadcast.emit(event, data);
   };
 
+  console.log('New client connected');
+  users[client.id] = { id: client.id, userName };
+  updateOnlineUsers();
+
+  console.log(`Number of connected clients: ${io.engine.clientsCount}`);
+  broadcast('activeUsers', io.engine.clientsCount);
+
+  client.on('createRoom', roomName => {
+    rooms[roomName] = { clients: {} };
+    client.join(roomName);
+  });
+
+  client.on('joinRoom', roomName => {
+    client.join(roomName);
+  });
+
   client.on('message', message => {
-    console.log(
-      `Wiadomość ${message.userName} o treści ${message.messageUser}`
-    );
-    if (users[client.id] !== message.name) {
-      users[client.id] = message.name;
-      broadcast('user', users);
-    }
     broadcast('message', message);
   });
 
+  // client.on('message', (message, roomName) => {
+  //   io.to(roomName).emit('message', message);
+  // });
+
   client.on('disconnect', () => {
     console.log('Client disconnected');
-
     delete users[client.id];
-    client.broadcast.emit('user', users);
+    updateOnlineUsers();
 
     const numberOfClients = io.engine.clientsCount;
     console.log(`Number of connected clients: ${numberOfClients}`);
+    broadcast('activeUsers', io.engine.clientsCount);
   });
 });
 
