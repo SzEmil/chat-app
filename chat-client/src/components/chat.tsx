@@ -1,41 +1,72 @@
 import { useState, useEffect } from 'react';
-// import { socket } from '../App';
+import { Chatform } from './ChatForm/ChatForm';
+import { nanoid } from 'nanoid/async';
 import css from './chat.module.css';
-
-type messageType = {
-  messageUser: string;
-  userName: string;
-};
 
 type chatProps = {
   socket: any;
   userName: string;
   isLoggedin: boolean;
+  userId: string;
 };
 
 type onlineUsers = {
-  id: number;
+  id: string;
   userName: string;
 };
-export const Chat = ({ socket, userName, isLoggedin }: chatProps) => {
-  const [messageUser, setMessageUser] = useState('');
-  const [messagesArr, setMessagesArr] = useState<messageType[]>([]);
+
+type messageType = {
+  messageUser: string;
+  userName: string;
+};
+type member = {
+  id: string;
+  userName: string;
+};
+export type chatData = {
+  id: string;
+  owner: string | '';
+  members: member[] | [];
+  messages: messageType[] | [];
+};
+
+type errorType = {
+  message: string;
+  data: any;
+  type: string;
+};
+export const Chat = ({ socket, userName, isLoggedin, userId }: chatProps) => {
   const [users, setUsers] = useState<onlineUsers[] | []>([]);
   const [activeUsers, setActiveUsers] = useState(0);
-  const [chatUsers, setChatUsers] = useState<string[] | number[]>([]);
+  const [error, setError] = useState<errorType | null>(null);
+  const [chatUsers, setChatUsers] = useState<member[]>([
+    { id: userId, userName: userName },
+  ]);
+
+  const [chats, setChats] = useState<chatData[] | []>([]);
+  const [activeChat, setActiveChat] = useState<chatData | null>(null);
 
   useEffect(() => {
-    socket.on('message', (message: messageType) => {
-      setMessagesArr(prevValue => [...prevValue, message]);
-    });
-
     socket.on('activeUsers', (usersLogged: number) => {
       setActiveUsers(usersLogged);
     });
-
+    socket.on('chatError', (data: any) => {
+      setError(data);
+    });
     socket.on('onlineUsers', (data: any) => {
       console.log(data);
       setUsers(data);
+    });
+
+    socket.on('createChat', async (data: any) => {
+
+      const chat: chatData = {
+        id: data.roomName,
+        owner: data.userId,
+        members: data.chatUsers,
+        messages: [],
+      };
+      setChats(prevVal => [...prevVal, chat]);
     });
 
     return () => {
@@ -46,65 +77,80 @@ export const Chat = ({ socket, userName, isLoggedin }: chatProps) => {
     };
   }, []);
 
-  const handleSubmit = (event: any) => {
-    event.preventDefault();
-
-    if (messageUser.trim() !== '') {
-      socket.emit('message', {
-        messageUser,
-        userName,
-      });
-      setMessageUser('');
-    }
-  };
-
-  const handleUserSelection = (userId: any) => {
-    if (chatUsers.includes(userId)) {
-      setChatUsers(chatUsers.filter(id => id !== userId));
+  const handleUserSelection = (member: member) => {
+    if (chatUsers.some(u => u.id === member.id)) {
+      setChatUsers(chatUsers.filter(m => m.id !== member.id));
     } else {
-      setChatUsers([...chatUsers, userId]);
+      setChatUsers([...chatUsers, member]);
     }
   };
-  const startChat = () => {
-    setChatUsers([]);
+
+  const createChat = async () => {
+    const roomName = await nanoid();
+    socket.emit('createChat', { userId, roomName, chatUsers });
+
+    setChatUsers([{ id: userId, userName: userName }]);
+  };
+
+  const handleStartChat = async (chatId: string) => {
+    const chatToActive = chats.find(chat => chat.id === chatId);
+
+    const data = {
+      userId: userId,
+      roomName: chatToActive?.id,
+      chatUsers: chatToActive?.members,
+    };
+    await socket.emit('openChat', data);
+    if (chatToActive) setActiveChat(chatToActive);
   };
   return (
-    <div>
-      <button onClick={() => console.log(userName)}>CHECK USERS</button>
-      <h2>Users</h2>
+    <div className={css.chatWrapper}>
       <div>
-        {users &&
-          users.map(user => (
-            <div key={user.id}>
-              <input
-                type="checkbox"
-                onChange={() => handleUserSelection(user.id)}
-                checked={chatUsers.includes(user.id)}
-              />
-              {user.userName}
-            </div>
-          ))}
+        {error && <p>{error.message}</p>}
+        <p>Users Chats:</p>
+        {chats.length === 0 ? (
+          <p>Start new conversation</p>
+        ) : (
+          <ul>
+            {chats.map(chat => (
+              <li key={chat.id}>
+                <p>{chat.id}</p>
+                <ul>
+                  {chat.members?.map(member => (
+                    <li key={member.id}>{member.userName}</li>
+                  ))}
+                </ul>
+                <button onClick={() => handleStartChat(chat!.id)}>
+                  START CHAT
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
 
-        <button onClick={startChat}>Rozpocznij nowy czat</button>
-      </div>
-      <p>Users on chat: {activeUsers}</p>
-      <form onSubmit={handleSubmit}>
-        <input
-          name="userMessage"
-          type="text"
-          placeholder="Enter your message"
-          value={messageUser}
-          onChange={e => setMessageUser(e.target.value)}
-        />
-        <button type="submit">Send</button>
-      </form>
+        <h2>Users</h2>
+        <p>Users online: {activeUsers}</p>
+        <div>
+          {users &&
+            users.map(user => (
+              <div key={user.id}>
+                <input
+                  type="checkbox"
+                  onChange={() => handleUserSelection(user)}
+                  checked={
+                    chatUsers.some(u => u.id === user.id) || user.id === userId
+                  }
+                />
+                {user.userName}
+              </div>
+            ))}
 
-      {messagesArr.map((message, index) => (
-        <div className={css.messageBox} key={index}>
-          <p>{message.userName}:</p>
-          <p>{message.messageUser}</p>
+          <button onClick={createChat}>Rozpocznij nowy czat</button>
         </div>
-      ))}
+      </div>
+      {activeChat && (
+        <Chatform socket={socket} chat={activeChat} userName={userName} />
+      )}
     </div>
   );
 };

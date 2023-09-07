@@ -1,6 +1,4 @@
-.messageBox {
+.chatWrapper {
   display: flex;
   gap: 20px;
-  padding: 10px;
-  border: 1px solid white;
 }

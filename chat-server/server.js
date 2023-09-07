@@ -43,39 +43,117 @@ function updateOnlineUsers() {
 
 io.on('connection', client => {
   const userName = client.handshake.query.userName;
+  const userId = client.handshake.query.userId;
 
   const broadcast = (event, data) => {
     client.emit(event, data);
     client.broadcast.emit(event, data);
   };
 
+  io.sockets.sockets[userId] = client;
   console.log('New client connected');
-  users[client.id] = { id: client.id, userName };
+  users[userId] = { id: userId, userName };
   updateOnlineUsers();
 
   console.log(`Number of connected clients: ${io.engine.clientsCount}`);
   broadcast('activeUsers', io.engine.clientsCount);
 
-  client.on('createRoom', roomName => {
-    rooms[roomName] = { clients: {} };
-    client.join(roomName);
+  client.on('createChat', ({ userId, roomName, chatUsers }) => {
+    //tu trzeba w bazie danych tworzyć czat łączyc go z userem i dosyłać obiekt czatu
+    const existingRoom = Object.values(rooms).find(room => {
+      const existingChatUsers = room.clients || [];
+      if (
+        existingChatUsers.length === chatUsers.length &&
+        existingChatUsers.every(user =>
+          chatUsers.some(chatUser => chatUser.id === user.id)
+        )
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    if (existingRoom) {
+      const userSocket = io.sockets.sockets[userId];
+      if (userSocket) {
+        const error = {
+          message: `Chat with these ${chatUsers.map(
+            user => user.userName
+          )} already exists.`,
+          data: chatUsers,
+          type: 'chat already exists',
+        };
+        userSocket.emit('chatError', error);
+      }
+    } else {
+      rooms[roomName] = { clients: chatUsers };
+      chatUsers.forEach(user => {
+        const userSocket = io.sockets.sockets[user.id];
+        if (userSocket) {
+          userSocket.join(roomName);
+        }
+      });
+      io.in(roomName).emit('createChat', { roomName, chatUsers, userId });
+    }
   });
 
-  client.on('joinRoom', roomName => {
-    client.join(roomName);
+  client.on('openChat', ({ userId, roomName, chatUsers }) => {
+    const conectionReady = false;
+    const existingRoom = Object.values(rooms).find(room => {
+      const existingChatUsers = room.clients || [];
+      if (
+        existingChatUsers.length === chatUsers.length &&
+        existingChatUsers.every(user =>
+          chatUsers.some(chatUser => chatUser.id === user.id)
+        )
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    if (existingRoom) {
+      const userSocket = io.sockets.sockets[userId];
+      if (userSocket) {
+        return;
+      }
+    } else {
+      rooms[roomName] = { clients: chatUsers };
+      chatUsers.forEach(user => {
+        const userSocket = io.sockets.sockets[user.id];
+        if (userSocket) {
+          userSocket.join(roomName);
+        }
+      });
+      conectionReady = true;
+      io.in(roomName).emit('openChat', { roomName });
+    }
   });
 
-  client.on('message', message => {
-    broadcast('message', message);
+  client.on('message', (message, roomName) => {
+    io.to(roomName).emit('message', message);
   });
 
-  // client.on('message', (message, roomName) => {
-  //   io.to(roomName).emit('message', message);
-  // });
+  client.on('endChat', roomName => {
+    const room = rooms[roomName];
+    const chatUsers = room.clients;
+
+    chatUsers.forEach(user => {
+      const userSocket = io.sockets.sockets[user.id];
+
+      if (userSocket) {
+        userSocket.emit('endChat', { roomName });
+        userSocket.leave(roomName);
+      }
+    });
+
+    delete rooms[roomName];
+  });
 
   client.on('disconnect', () => {
     console.log('Client disconnected');
-    delete users[client.id];
+    delete users[userId];
+    delete io.sockets.sockets[userId];
     updateOnlineUsers();
 
     const numberOfClients = io.engine.clientsCount;
