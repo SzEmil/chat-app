@@ -20,8 +20,8 @@ type messageType = {
   userName: string;
 };
 type member = {
-  id: string;
-  userName: string;
+  id: number | null | undefined;
+  userName: string | null;
 };
 export type chatData = {
   id: string;

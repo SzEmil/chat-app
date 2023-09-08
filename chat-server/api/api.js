@@ -14,6 +14,6 @@ router.post('/users/signIn', userController.login);
 
 router.post('/users/signOut', authUser, userController.logout);
 
-router.post('/users/current', authUser, userController.currentUser);
+router.get('/users/current', authUser, userController.currentUser);
 
 export default router;

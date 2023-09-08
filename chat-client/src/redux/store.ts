@@ -3,6 +3,7 @@ import persistReducer from 'redux-persist/es/persistReducer';
 import persistStore from 'redux-persist/es/persistStore';
 import storage from 'redux-persist/lib/storage';
 import { userReducer } from './user/userSlice';
+import { globalsReducer } from './globals/globalsSlice';
 
 import {
   FLUSH,
@@ -24,6 +25,7 @@ const userPersistConfig = {
 export const store = configureStore({
   reducer: {
     user: persistReducer(userPersistConfig, userReducer),
+    globals: globalsReducer,
   },
   middleware: getDefaultMiddleware({
     serializableCheck: {

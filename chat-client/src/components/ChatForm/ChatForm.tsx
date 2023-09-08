@@ -23,6 +23,7 @@ export const Chatform = ({ socket, chat, userName }: chatProps) => {
     });
 
     socket.on('endChat', async (data: any) => {
+      console.log('konczymy czat');
       setMessagesArr([]);
     });
   }, []);

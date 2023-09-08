@@ -12,7 +12,7 @@ const setAuthHeader = (token: string) => {
 
 const removeAuthHeader = () => {
   axios.defaults.headers.common.Authorization = '';
-}
+};
 
 type credentialsRegisterType = {
   username: string;
@@ -43,7 +43,7 @@ export const logIn = createAsyncThunk(
   'auth/login',
   async (credentials: credentialsLoginType, thunkAPI) => {
     try {
-      const response = await axios.post('/users/login', credentials);
+      const response = await axios.post('/users/signIn', credentials);
       setAuthHeader(response.data.ResponseBody.token);
 
       Notiflix.Notify.success(response.data.ResponseBody.message);
@@ -62,8 +62,9 @@ export const logOut = createAsyncThunk('auth/signOut', async (_, thunkAPI) => {
 
     if (!token) return thunkAPI.rejectWithValue('Valid token is not provided');
     setAuthHeader(token);
-    await axios.post('/users/logout');
+    await axios.post('/users/signOut');
     removeAuthHeader();
+    return;
   } catch (error: any) {
     Notiflix.Notify.failure(error.response.data.ResponseBody.message);
     return thunkAPI.rejectWithValue(error.response.data.ResponseBody.message);
@@ -94,9 +95,3 @@ export const refreshUser = createAsyncThunk<
     return thunkAPI.rejectWithValue(e.response.data.ResponseBody.message);
   }
 });
-
-
-
-
-
-

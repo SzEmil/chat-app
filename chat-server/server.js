@@ -55,6 +55,13 @@ io.on('connection', client => {
   users[userId] = { id: userId, userName };
   updateOnlineUsers();
 
+  client.on('userRooms', userId => {
+    const userRooms = Object.values(rooms).filter(room =>
+      room.clients.some(client => client.id == userId)
+    );
+    client.emit('userRooms', userRooms);
+  });
+
   console.log(`Number of connected clients: ${io.engine.clientsCount}`);
   broadcast('activeUsers', io.engine.clientsCount);
 
@@ -65,7 +72,7 @@ io.on('connection', client => {
       if (
         existingChatUsers.length === chatUsers.length &&
         existingChatUsers.every(user =>
-          chatUsers.some(chatUser => chatUser.id === user.id)
+          chatUsers.some(chatUser => chatUser.id == user.id)
         )
       ) {
         return true;
@@ -86,7 +93,7 @@ io.on('connection', client => {
         userSocket.emit('chatError', error);
       }
     } else {
-      rooms[roomName] = { clients: chatUsers };
+      rooms[roomName] = { id: roomName, owner: userId, clients: chatUsers };
       chatUsers.forEach(user => {
         const userSocket = io.sockets.sockets[user.id];
         if (userSocket) {
@@ -104,7 +111,7 @@ io.on('connection', client => {
       if (
         existingChatUsers.length === chatUsers.length &&
         existingChatUsers.every(user =>
-          chatUsers.some(chatUser => chatUser.id === user.id)
+          chatUsers.some(chatUser => chatUser.id == user.id)
         )
       ) {
         return true;
@@ -148,6 +155,17 @@ io.on('connection', client => {
     });
 
     delete rooms[roomName];
+  });
+
+  client.on('leaveServer', () => {
+    console.log('Client disconnected');
+    delete users[userId];
+    delete io.sockets.sockets[userId];
+    updateOnlineUsers();
+
+    const numberOfClients = io.engine.clientsCount;
+    console.log(`Number of connected clients: ${numberOfClients}`);
+    broadcast('activeUsers', io.engine.clientsCount);
   });
 
   client.on('disconnect', () => {

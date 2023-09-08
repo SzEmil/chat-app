@@ -3,7 +3,7 @@ import { register, logIn, logOut, refreshUser } from './userOperations';
 
 export type authInitialStateType = {
   user: {
-    id: string | null | undefined;
+    id: number | null | undefined;
     username: string | null;
     email: string | null;
   };
@@ -71,7 +71,7 @@ const authSlice = createSlice({
               avatarURL: string;
               emailVerification: boolean;
               token: string | null;
-              id: string | null;
+              id: number | null;
             };
           }
         ) => {
@@ -112,7 +112,7 @@ const authSlice = createSlice({
                 username: string | null;
                 email: string | null;
                 token: string | null;
-                id: string | null;
+                id: number | null;
               };
             };
           }

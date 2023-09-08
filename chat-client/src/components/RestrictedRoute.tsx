@@ -1,6 +1,7 @@
 import { useAuth } from '../hooks/useAuth';
 import { Navigate } from 'react-router-dom';
 import { ComponentType } from 'react';
+import { getSocket } from '../services/socketService';
 
 type RestrictedRouteProps = {
   component: ComponentType;
@@ -12,6 +13,11 @@ export const RestrictedRoute = ({
   redirectTo = '/',
 }: RestrictedRouteProps) => {
   const { isLoggedIn } = useAuth();
+  const socket = getSocket();
 
-  return isLoggedIn ? <Navigate to={redirectTo} /> : <Component />;
+  return isLoggedIn == true  ? (
+    <Navigate to={redirectTo} />
+  ) : (
+    <Component />
+  );
 };
