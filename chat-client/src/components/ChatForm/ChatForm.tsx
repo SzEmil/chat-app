@@ -10,7 +10,7 @@ type messageType = {
 type chatProps = {
   socket: any;
   chat: chatData | null;
-  userName: string;
+  userName: string | null | undefined;
 };
 
 export const Chatform = ({ socket, chat, userName }: chatProps) => {

@@ -1,7 +1,11 @@
 import { io } from 'socket.io-client';
-import { Chat } from './components/chat';
 import { useEffect, useState } from 'react';
-import { nanoid } from 'nanoid';
+import { Route, Routes } from 'react-router-dom';
+import { HomePage } from './pages/HomePage/HomePage';
+import { ChatPage } from './pages/ChatPage/ChatPage';
+import { NotFound } from './pages/NotFound/NotFound';
+import { RestrictedRoute } from './components/RestrictedRoute';
+import { ProtectedRoute } from './components/ProtectedRoute';
 
 export let socket: any;
 const App = () => {
@@ -26,33 +30,21 @@ const App = () => {
   }, [isLoggedin]);
 
   return (
-    <div>
-      <input
-        name="userName"
-        type="text"
-        placeholder="Enter your username"
-        value={userName}
-        onChange={e => setUsername(e.target.value)}
-      />
-      <button
-        onClick={() => {
-          setIsLoggedIn(true);
-          setUserId(nanoid());
-        }}
-      >
-        LOGIN
-      </button>
-      {isLoggedin && <p>Logged</p>}
-      {!isLoggedin && <p>No loged</p>}
-      {isLoggedin && socketReady && (
-        <Chat
-          socket={socket}
-          userName={userName}
-          isLoggedin={isLoggedin}
-          userId={userId}
+    <>
+      <Routes>
+      <Route
+            path="/"
+            element={<RestrictedRoute component={HomePage} redirectTo="/chat" />}
+          />
+
+        <Route
+          path="/chat"
+          element={<ProtectedRoute component={ChatPage} redirectTo="/auth" />}
         />
-      )}
-    </div>
+
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </>
   );
 };
 

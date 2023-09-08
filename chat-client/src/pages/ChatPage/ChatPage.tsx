@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Chatform } from './ChatForm/ChatForm';
+import { Chatform } from '../../components/ChatForm/ChatForm';
 import { nanoid } from 'nanoid/async';
-import css from './chat.module.css';
+import { selectAuthUserUsername } from '../../redux/user/userSelectors';
+import { selectAuthUserId } from '../../redux/user/userSelectors';
+import { selectAuthUserIsLoggedIn } from '../../redux/user/userSelectors';
+import { useSelector } from 'react-redux';
+import css from './ChatPage.module.css';
 
 type chatProps = {
   socket: any;
@@ -20,8 +24,8 @@ type messageType = {
   userName: string;
 };
 type member = {
-  id: string;
-  userName: string;
+  id: string | null | undefined;
+  userName: string | null;
 };
 export type chatData = {
   id: string;
@@ -35,7 +39,11 @@ type errorType = {
   data: any;
   type: string;
 };
-export const Chat = ({ socket, userName, isLoggedin, userId }: chatProps) => {
+export const ChatPage = ({ socket }: chatProps) => {
+  const userName = useSelector(selectAuthUserUsername);
+  const userId = useSelector(selectAuthUserId);
+  const isLoggedIn = useSelector(selectAuthUserIsLoggedIn);
+
   const [users, setUsers] = useState<onlineUsers[] | []>([]);
   const [activeUsers, setActiveUsers] = useState(0);
   const [error, setError] = useState<errorType | null>(null);
