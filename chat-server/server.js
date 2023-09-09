@@ -7,16 +7,17 @@ import path from 'node:path';
 import database from './helpers/dbConnection.js';
 import { Server } from 'socket.io';
 import { createServer } from 'http';
-import http from 'http'; // Dodajemy moduł http
+import http from 'http';
+import serviceChats from './service/serviceChats.js';
 
 const app = express();
 import './config/config-passport.js';
 
-const httpServer = http.createServer(app); // Tworzymy serwer HTTP
+const httpServer = http.createServer(app);
 
 const io = new Server(httpServer, {
   cors: {
-    origin: 'http://localhost:5173', // Adres aplikacji klienckiej
+    origin: 'http://localhost:5173',
     methods: ['GET', 'POST'],
   },
 });
@@ -55,18 +56,15 @@ io.on('connection', client => {
   users[userId] = { id: userId, userName };
   updateOnlineUsers();
 
-  client.on('userRooms', userId => {
-    const userRooms = Object.values(rooms).filter(room =>
-      room.clients.some(client => client.id == userId)
-    );
-    client.emit('userRooms', userRooms);
+  client.on('userRooms', async userId => {
+    const existingChats = await serviceChats.getUserChats(userId);
+    client.emit('userRooms', existingChats);
   });
 
   console.log(`Number of connected clients: ${io.engine.clientsCount}`);
   broadcast('activeUsers', io.engine.clientsCount);
 
-  client.on('createChat', ({ userId, roomName, chatUsers }) => {
-    //tu trzeba w bazie danych tworzyć czat łączyc go z userem i dosyłać obiekt czatu
+  client.on('createChat', async ({ userId, roomName, chatUsers, chatName }) => {
     const existingRoom = Object.values(rooms).find(room => {
       const existingChatUsers = room.clients || [];
       if (
@@ -93,19 +91,31 @@ io.on('connection', client => {
         userSocket.emit('chatError', error);
       }
     } else {
-      rooms[roomName] = { id: roomName, owner: userId, clients: chatUsers };
-      chatUsers.forEach(user => {
-        const userSocket = io.sockets.sockets[user.id];
-        if (userSocket) {
-          userSocket.join(roomName);
-        }
-      });
-      io.in(roomName).emit('createChat', { roomName, chatUsers, userId });
+      try {
+        const newChat = await serviceChats.createNewChat(
+          chatName,
+          chatUsers,
+          userId
+        );
+
+        newChat.clients.forEach(client => {
+          const userSocket = io.sockets.sockets[client.id];
+          if (userSocket) {
+            userSocket.emit('createChat', {
+              roomName: newChat.id,
+              chatUsers: newChat.clients,
+              userId: newChat.owner,
+              chatName: newChat.chatname,
+            });
+          }
+        });
+      } catch (e) {
+        throw e.message;
+      }
     }
   });
 
   client.on('openChat', ({ userId, roomName, chatUsers }) => {
-    const conectionReady = false;
     const existingRoom = Object.values(rooms).find(room => {
       const existingChatUsers = room.clients || [];
       if (
@@ -122,6 +132,7 @@ io.on('connection', client => {
     if (existingRoom) {
       const userSocket = io.sockets.sockets[userId];
       if (userSocket) {
+        userSocket.join(roomName);
         return;
       }
     } else {
@@ -132,7 +143,7 @@ io.on('connection', client => {
           userSocket.join(roomName);
         }
       });
-      conectionReady = true;
+
       io.in(roomName).emit('openChat', { roomName });
     }
   });

@@ -1,5 +1,14 @@
-.homeWrapper {
+.home {
   display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+}
+.homeWrapper {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
   gap: 50px;
 }
 .formBox {
@@ -11,4 +20,25 @@
   display: flex;
   gap: 10px;
   align-items: center;
+}
+.aside {
+  max-width: 700px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  flex: 1;
+}
+.title {
+  margin-bottom: 100px;
+}
+.joinWrapper {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 40px;
+}
+.joinText {
+  font-size: 22px;
+  line-height: 26px;
 }

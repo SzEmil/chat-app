@@ -1,7 +1,60 @@
+.chat {
+  padding: 10px 10px;
+  min-width: 300px;
+  width: 100%;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.chatNav {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.chatMessageWrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  max-height: 90%;
+}
+.sendMessageForm {
+  display: flex;
+  width: 100%;
+  gap: 5px;
+  justify-content: space-between;
+}
+.sendMessageInput {
+  width: 100%;
+}
+.messageList {
+  overflow-y: scroll;
+}
 .messageBox {
-    display: flex;
-    gap: 20px;
-    padding: 10px;
-    border: 1px solid white;
-  }
-  
+  display: flex;
+  flex-direction: row;
+  padding: 10px;
+  justify-content: left;
+}
+.messageWrapper {
+  display: flex;
+  width: 100%;
+  flex-direction: row;
+  gap: 10px;
+
+  align-items: flex-end;
+}
+.messageFromGuest .messageWrapper {
+  flex-direction: row-reverse;
+
+}
+.messageText {
+  background-color: rgb(0, 140, 255);
+  border-radius: 5px;
+  padding: 5px 10px;
+  max-width: 400px;
+}

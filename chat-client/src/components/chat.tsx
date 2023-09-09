@@ -24,6 +24,7 @@ type member = {
   userName: string | null;
 };
 export type chatData = {
+  name: ReactNode;
   id: string;
   owner: string | '';
   members: member[] | [];

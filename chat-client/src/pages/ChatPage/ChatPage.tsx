@@ -12,6 +12,8 @@ import { logOut } from '../../redux/user/userOperations';
 import { AppDispatch } from '../../redux/store';
 import { useDispatch } from 'react-redux';
 import { initializeSocket } from '../../services/socketService';
+import { BiLogOut } from 'react-icons/bi';
+import Notiflix from 'notiflix';
 
 type onlineUsers = {
   id: number | null | undefined;
@@ -28,6 +30,7 @@ type member = {
 };
 export type chatData = {
   id: string;
+  name: string;
   owner: string | '';
   members: member[] | [];
   messages: messageType[] | [];
@@ -39,6 +42,7 @@ type errorType = {
   type: string;
 };
 export const ChatPage = () => {
+  //dodać fetcha wszystkich userów zamiast tylko tych zalogowanych, Ci zalogowani beda wykorzsytywaani by dodać że są zalgoowani poprzez wyszukanie ich w chatUsers
   const dispatch: AppDispatch = useDispatch();
   const socket = getSocket();
   // const socketReady = useSelector(selectSocketReady);
@@ -50,14 +54,36 @@ export const ChatPage = () => {
   const [socketReady, setSocketReady] = useState(false);
   const [users, setUsers] = useState<onlineUsers[] | []>([]);
   const [activeUsers, setActiveUsers] = useState(0);
+  const [chatName, setChatName] = useState('');
   const [error, setError] = useState<errorType | null>(null);
   const [chatUsers, setChatUsers] = useState<member[]>([
     { id: userId, userName: userName },
   ]);
 
   const [chats, setChats] = useState<chatData[] | []>([]);
-  const [activeChat, setActiveChat] = useState<chatData | null>(null);
+  const [activeChat, setActiveChat] = useState<chatData | null>({
+    id: '',
+    owner: '',
+    name: '',
+    members: [],
+    messages: [],
+  });
+  const [chatsFilter, setChatsFilter] = useState('');
+  const [usersFilter, setUsersFilter] = useState('');
+  const filteredChats = chats.filter(chat => {
+    if (chat.members && chat.members.length > 0) {
+      return chat.members.some(member => {
+        return member
+          .userName!.toLowerCase()
+          .includes(chatsFilter.toLowerCase());
+      });
+    }
+    return false;
+  });
 
+  const filteredUsers = users.filter(user =>
+    user.userName!.toLowerCase().includes(usersFilter.toLowerCase())
+  );
   useEffect(() => {
     const initializeSocketAndRedux = async () => {
       if (isLoggedIn) {
@@ -87,6 +113,7 @@ export const ChatPage = () => {
       });
       socket!.on('chatError', (data: any) => {
         setError(data);
+        Notiflix.Notify.info(data.message);
       });
       socket!.on('onlineUsers', (data: any) => {
         console.log(data);
@@ -94,9 +121,11 @@ export const ChatPage = () => {
       });
 
       socket.on('userRooms', (data: any) => {
+        console.log(data);
         const chatsData = data.map((chat: any) => {
           const newChat: chatData = {
             id: chat.id,
+            name: chat.chatName,
             owner: chat.owner,
             members: chat.clients,
             messages: [],
@@ -114,12 +143,19 @@ export const ChatPage = () => {
         const newChats = chats.splice(indexToDelette, 1);
         console.log(newChats);
         setChats(newChats);
-        setActiveChat(null);
+        setActiveChat({
+          id: '',
+          name: '',
+          owner: '',
+          members: [],
+          messages: [],
+        });
       });
 
       socket!.on('createChat', async (data: any) => {
         const chat: chatData = {
           id: data.roomName,
+          name: data.chatName,
           owner: data.userId,
           members: data.chatUsers,
           messages: [],
@@ -147,7 +183,7 @@ export const ChatPage = () => {
   const createChat = async () => {
     if (socket) {
       const roomName = await nanoid();
-      socket!.emit('createChat', { userId, roomName, chatUsers });
+      socket!.emit('createChat', { userId, roomName, chatUsers, chatName });
 
       setChatUsers([{ id: userId, userName: userName }]);
     }
@@ -175,57 +211,99 @@ export const ChatPage = () => {
   };
   return (
     <div className={css.chatWrapper}>
-      <button onClick={() => console.log(chats)}>chaty</button>
-      <div>
-        USER: {user.email}{' '}
-        <button onClick={() => handleLogOut()}>LOGOUT</button>
-      </div>
-      <div>
-        {error && <p>{error.message}</p>}
-        <p>Users Chats:</p>
-        {chats.length === 0 ? (
-          <p>Start new conversation</p>
-        ) : (
-          <ul>
-            {chats.map(chat => (
-              <li key={chat.id}>
-                <p>{chat.id}</p>
-                <ul>
-                  {chat.members?.map(member => (
-                    <li key={member.id}>{member.userName}</li>
-                  ))}
-                </ul>
-                <button onClick={() => handleStartChat(chat!.id)}>
-                  START CHAT
-                </button>
-              </li>
-            ))}
-          </ul>
+      <div className={css.chatBox}>
+        {/* <button onClick={() => console.log(filteredChats)}>chaty</button> */}
+
+        <ul className={css.userNav}>
+          <li>
+            <p>{user.username}</p>
+          </li>
+          <li>
+            <button className={css.btn} onClick={() => handleLogOut()}>
+              <BiLogOut size={34} />
+            </button>
+          </li>
+        </ul>
+
+        <div className={css.chatsWrapper}>
+          <input
+            className={css.chatsInput}
+            type="text"
+            placeholder="Search for chat"
+            name="chatName"
+            onChange={e => setChatsFilter(e.target.value)}
+            value={chatsFilter}
+          />
+          {chats.length === 0 ? (
+            <p>Start new conversation</p>
+          ) : (
+            <ul className={css.userChats}>
+              {filteredChats.map(chat => (
+                <li
+                  className={css.userChatsItem}
+                  key={chat.id}
+                  onClick={() => handleStartChat(chat!.id)}
+                >
+                  <ul className={css.userChatMembers}>
+                    {chat.members?.map(member => (
+                      <li key={member.id}>
+                        <p>{member.userName}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {activeChat && socket && (
+          <Chatform
+            socket={socket}
+            chat={activeChat}
+            userName={userName}
+            user={user}
+          />
         )}
-
-        <h2>Users</h2>
-        <p>Users online: {activeUsers}</p>
+      </div>
+      <div className={css.newChatBox}>
         <div>
-          {users &&
-            users.map(user => (
-              <div key={user.id}>
-                <input
-                  type="checkbox"
-                  onChange={() => handleUserSelection(user)}
-                  checked={
-                    chatUsers.some(u => u.id === user.id) || user.id == userId
-                  }
-                />
-                {user.userName}
-              </div>
-            ))}
+          <h2>Users</h2>
+          <input
+            type="text"
+            placeholder="Search for users"
+            name="chatName"
+            onChange={e => setUsersFilter(e.target.value)}
+            value={usersFilter}
+          />
+          <p>Users online: {activeUsers}</p>
 
-          <button onClick={createChat}>Rozpocznij nowy czat</button>
+          <div className={css.users}>
+            {users &&
+              filteredUsers.map(user => (
+                <div key={user.id}>
+                  <input
+                    type="checkbox"
+                    onChange={() => handleUserSelection(user)}
+                    checked={
+                      chatUsers.some(u => u.id === user.id) || user.id == userId
+                    }
+                  />
+                  {user.userName}
+                </div>
+              ))}
+          </div>
+        </div>
+        <div>
+          <input
+            type="text"
+            placeholder="Chat name"
+            name="newChatName"
+            onChange={e => setChatName(e.target.value)}
+            value={chatName}
+          />
+          <button onClick={createChat}>New Chat</button>
         </div>
       </div>
-      {activeChat && socket && (
-        <Chatform socket={socket} chat={activeChat} userName={userName} />
-      )}
     </div>
   );
 };
