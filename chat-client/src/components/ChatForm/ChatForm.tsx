@@ -11,6 +11,7 @@ type messageType = {
   messageUser: string;
   userName: string;
   owner: number;
+  created_at: string;
 };
 
 type chatProps = {
@@ -23,10 +24,26 @@ type chatProps = {
 export const Chatform = ({ socket, chat, userName, user }: chatProps) => {
   const [messagesArr, setMessagesArr] = useState<messageType[]>([]);
   const [messageUser, setMessageUser] = useState('');
+  const [lastMessageSeen, setLastMessageSeen] = useState(false);
+
+  const cutDate = (date: string | null | undefined) => {
+    const year = date!.slice(0, 10);
+    const time = date!.slice(11, 16);
+
+    return `${year}  ${time}`;
+  };
+
+  useEffect(() => {
+    socket.emit('getChatMessages', chat!.id);
+  }, [chat]);
 
   useEffect(() => {
     socket.on('message', (message: messageType) => {
       setMessagesArr(prevValue => [...prevValue, message]);
+    });
+
+    socket.on('getChatMessages', async (data: any) => {
+      setMessagesArr(data);
     });
 
     socket.on('endChat', async (data: any) => {
@@ -40,31 +57,34 @@ export const Chatform = ({ socket, chat, userName, user }: chatProps) => {
 
     if (messageUser.trim() !== '') {
       const roomName = chat!.id;
+      const chatMembers = chat?.members;
       socket.emit(
         'message',
         {
+          chatId: chat?.id,
           owner: user!.id,
           messageUser,
           userName: userName,
         },
-        roomName
+        roomName,
+        chatMembers
       );
       setMessageUser('');
     }
-  };
-  const handleCloseChat = (chatId: string) => {
-    socket.emit('endChat', chatId);
   };
 
   return (
     <div className={css.chat} key={chat!.id}>
       <div className={css.chatMessageWrapper}>
         <div className={css.chatNav}>
-          <p>{chat!.name}</p>
-          {chat!.id !== '' && (
-            <button onClick={() => handleCloseChat(chat!.id)}>
-              Delete Chat
-            </button>
+          {chat!.name !== '' ? (
+            <p>{chat!.name}</p>
+          ) : (
+            <ul className={css.chatUsers}>
+              {chat?.members.map((member, index) => (
+                <li key={index}>{member.userName}</li>
+              ))}
+            </ul>
           )}
         </div>
         {messagesArr.length === 0 && chat!.id ? (
@@ -72,15 +92,13 @@ export const Chatform = ({ socket, chat, userName, user }: chatProps) => {
         ) : (
           <ul className={css.messageList}>
             {messagesArr.map((message, index) => (
-              <li
-                className={`${css.messageBox} ${
-                  user.id !== message.owner && css.messageFromGuest
-                }`}
-                key={index}
-              >
+              <li className={`${css.messageBox}`} key={index}>
                 <div className={css.messageWrapper}>
-                  <p>{message.userName}</p>
-                  <p className={css.messageText}>{message.messageUser}</p>
+                  <div className={css.message}>
+                    <p>{message.userName}</p>
+                    <p className={css.messageText}>{message.messageUser}</p>
+                  </div>
+                  <p>{cutDate(message.created_at)}</p>
                 </div>
               </li>
             ))}

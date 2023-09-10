@@ -1,8 +1,9 @@
 .home {
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center;
   width: 100%;
+  min-height: 100vh;
 }
 .homeWrapper {
   width: 100%;

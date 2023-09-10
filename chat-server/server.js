@@ -56,6 +56,8 @@ io.on('connection', client => {
   users[userId] = { id: userId, userName };
   updateOnlineUsers();
 
+  client.on('getLoggedUsers', updateOnlineUsers);
+
   client.on('userRooms', async userId => {
     const existingChats = await serviceChats.getUserChats(userId);
     client.emit('userRooms', existingChats);
@@ -65,6 +67,7 @@ io.on('connection', client => {
   broadcast('activeUsers', io.engine.clientsCount);
 
   client.on('createChat', async ({ userId, roomName, chatUsers, chatName }) => {
+    const existingChats = await serviceChats.getUserChats(userId);
     const existingRoom = Object.values(rooms).find(room => {
       const existingChatUsers = room.clients || [];
       if (
@@ -78,7 +81,20 @@ io.on('connection', client => {
       return false;
     });
 
-    if (existingRoom) {
+    const existingChat = existingChats.find(room => {
+      const existingChatUsers = room.clients || [];
+      if (
+        existingChatUsers.length === chatUsers.length &&
+        existingChatUsers.every(user =>
+          chatUsers.some(chatUser => chatUser.id == user.id)
+        )
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    if (existingRoom || existingChat) {
       const userSocket = io.sockets.sockets[userId];
       if (userSocket) {
         const error = {
@@ -106,6 +122,7 @@ io.on('connection', client => {
               chatUsers: newChat.clients,
               userId: newChat.owner,
               chatName: newChat.chatname,
+              lastMessage: '',
             });
           }
         });
@@ -148,8 +165,40 @@ io.on('connection', client => {
     }
   });
 
-  client.on('message', (message, roomName) => {
-    io.to(roomName).emit('message', message);
+  client.on('getChatMessages', async chatId => {
+    const chatMessages = await serviceChats.getChatMessages(chatId);
+
+    client.emit('getChatMessages', chatMessages);
+  });
+
+  client.on('message', async (message, roomName, chatMembers) => {
+    const newMessage = await serviceChats.createMessage(
+      message.chatId,
+      message.owner,
+      message.messageUser,
+      message.userName
+    );
+
+    const chatId = message.chatId;
+    const messageData = message.messageUser;
+    for (const chatMember of chatMembers) {
+      const ownerSocket = io.sockets.sockets[chatMember.id];
+      ownerSocket.emit('newMessageDataArrived', { messageData, chatId });
+      if (chatMember.id != message.owner) {
+
+        const isNewMessageArrived = await serviceChats.newMessageArrived(
+          message.chatId,
+          chatMember.id
+        );
+        const userSocket = io.sockets.sockets[chatMember.id];
+
+        if (userSocket) {
+          userSocket.emit('newMessageArrived', { isNewMessageArrived, chatId });
+        }
+      }
+    }
+
+    io.to(roomName).emit('message', newMessage);
   });
 
   client.on('endChat', roomName => {

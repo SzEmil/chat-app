@@ -34,6 +34,8 @@ export type chatData = {
   owner: string | '';
   members: member[] | [];
   messages: messageType[] | [];
+  lastMessage: string;
+  isNewMessageArrived?: boolean;
 };
 
 type errorType = {
@@ -53,7 +55,6 @@ export const ChatPage = () => {
 
   const [socketReady, setSocketReady] = useState(false);
   const [users, setUsers] = useState<onlineUsers[] | []>([]);
-  const [activeUsers, setActiveUsers] = useState(0);
   const [chatName, setChatName] = useState('');
   const [error, setError] = useState<errorType | null>(null);
   const [chatUsers, setChatUsers] = useState<member[]>([
@@ -67,6 +68,8 @@ export const ChatPage = () => {
     name: '',
     members: [],
     messages: [],
+    lastMessage: '',
+    isNewMessageArrived: false,
   });
   const [chatsFilter, setChatsFilter] = useState('');
   const [usersFilter, setUsersFilter] = useState('');
@@ -84,6 +87,7 @@ export const ChatPage = () => {
   const filteredUsers = users.filter(user =>
     user.userName!.toLowerCase().includes(usersFilter.toLowerCase())
   );
+
   useEffect(() => {
     const initializeSocketAndRedux = async () => {
       if (isLoggedIn) {
@@ -105,12 +109,10 @@ export const ChatPage = () => {
   }, [isLoggedIn]);
   useEffect(() => {
     socket?.emit('userRooms', userId);
+    socket?.emit('getLoggedUsers');
   }, [socket]);
   useEffect(() => {
     if (socket) {
-      socket!.on('activeUsers', (usersLogged: number) => {
-        setActiveUsers(usersLogged);
-      });
       socket!.on('chatError', (data: any) => {
         setError(data);
         Notiflix.Notify.info(data.message);
@@ -119,9 +121,12 @@ export const ChatPage = () => {
         console.log(data);
         setUsers(data);
       });
+      // socket!.on('newMessageArrived', (data: any) => {
+      //   const foundChat = chats.find(chat => chat.id === data.chatId);
+      //   foundChat!.isNewMessageArrived = data.isNewMessageArrived;
+      // });
 
-      socket.on('userRooms', (data: any) => {
-        console.log(data);
+      socket.on('userRooms', async (data: any) => {
         const chatsData = data.map((chat: any) => {
           const newChat: chatData = {
             id: chat.id,
@@ -129,27 +134,13 @@ export const ChatPage = () => {
             owner: chat.owner,
             members: chat.clients,
             messages: [],
+            lastMessage: chat.lastMessage,
+            isNewMessageArrived: chat.newMessage,
           };
           return newChat;
         });
         setChats(chatsData);
-        console.log('userRoomsd', chatsData);
-      });
-
-      socket.on('endChat', (data: any) => {
-        const indexToDelette = chats.findIndex(
-          chat => chat.id === data.roomName
-        );
-        const newChats = chats.splice(indexToDelette, 1);
-        console.log(newChats);
-        setChats(newChats);
-        setActiveChat({
-          id: '',
-          name: '',
-          owner: '',
-          members: [],
-          messages: [],
-        });
+        console.log('userRoomsd', chats);
       });
 
       socket!.on('createChat', async (data: any) => {
@@ -159,6 +150,7 @@ export const ChatPage = () => {
           owner: data.userId,
           members: data.chatUsers,
           messages: [],
+          lastMessage: '',
         };
         setChats(prevVal => [...prevVal, chat]);
       });
@@ -171,7 +163,32 @@ export const ChatPage = () => {
       // };
     }
   }, [socket]);
-
+  useEffect(() => {
+    if (chats.length > 0) {
+      socket!.on('newMessageDataArrived', (data: any) => {
+        const foundChat = chats.find(chat => chat.id == data.chatId);
+        if (chats && foundChat) {
+          foundChat!.lastMessage = data.messageData;
+          const indexOfChat = chats.findIndex(chat => chat.id == foundChat.id);
+          const newChats = chats.splice(indexOfChat, 1, foundChat);
+          setChats(newChats);
+        }
+      });
+    }
+    if (chats.length > 0) {
+      socket!.on('newMessageArrived', (data: any) => {
+        console.log(data);
+        console.log(chats);
+        const foundChat = chats.find(chat => chat.id == data.chatId);
+        if (chats && foundChat) {
+          foundChat!.isNewMessageArrived = data.isNewMessageArrived;
+          const indexOfChat = chats.findIndex(chat => chat.id == foundChat.id);
+          const newChats = chats.splice(indexOfChat, 1, foundChat);
+          setChats(newChats);
+        }
+      });
+    }
+  }, [chats]);
   const handleUserSelection = (member: member) => {
     if (chatUsers.some(u => u.id === member.id)) {
       setChatUsers(chatUsers.filter(m => m.id !== member.id));
@@ -209,8 +226,10 @@ export const ChatPage = () => {
       socket.emit('leaveServer');
     }
   };
+
   return (
     <div className={css.chatWrapper}>
+      <button onClick={() => console.log(chats)}>chats</button>
       <div className={css.chatBox}>
         {/* <button onClick={() => console.log(filteredChats)}>chaty</button> */}
 
@@ -244,6 +263,7 @@ export const ChatPage = () => {
                   key={chat.id}
                   onClick={() => handleStartChat(chat!.id)}
                 >
+                  {chat.name !== '' ? <p>{chat.name}</p> : null}
                   <ul className={css.userChatMembers}>
                     {chat.members?.map(member => (
                       <li key={member.id}>
@@ -251,6 +271,11 @@ export const ChatPage = () => {
                       </li>
                     ))}
                   </ul>
+                  <p
+                    className={`${chat.isNewMessageArrived && css.newMessage}`}
+                  >
+                    {chat.lastMessage}
+                  </p>
                 </li>
               ))}
             </ul>
@@ -275,7 +300,7 @@ export const ChatPage = () => {
             onChange={e => setUsersFilter(e.target.value)}
             value={usersFilter}
           />
-          <p>Users online: {activeUsers}</p>
+          <p>Users online: {users.length}</p>
 
           <div className={css.users}>
             {users &&

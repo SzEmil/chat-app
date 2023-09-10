@@ -4,7 +4,6 @@ import { useState } from 'react';
 import css from './HomePage.module.css';
 import { useSelector } from 'react-redux';
 import { selectAuthUserIsLoggedIn } from '../../redux/user/userSelectors';
-import { useNavigate } from 'react-router-dom';
 
 export let socket: any;
 export const HomePage = () => {
