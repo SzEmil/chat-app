@@ -74,6 +74,41 @@
 }
 .users {
 }
+.loggedUser {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.newMessageText {
+  font-size: 14px;
+  color: rgb(139, 139, 139);
+}
 .newMessage {
   font-weight: 800;
+  color: white;
+}
+.logged {
+  display: block;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background-color: green;
+}
+.notLogged {
+  display: block;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background-color: red;
+}
+.userChat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.chatNameInput {
+  margin-bottom: 10px;
+}
+.activeChat {
+  background-color: rgba(255, 255, 255, 0.2);
 }

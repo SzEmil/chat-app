@@ -48,6 +48,11 @@ const getUserChats = async userId => {
 };
 
 const createMessage = async (chatId, owner, messageUser, userName) => {
+  const messageUserData = {
+    newMessage: messageUser,
+    user: userName,
+  };
+  const messageJSON = JSON.stringify(messageUserData);
   const query =
     'INSERT INTO messages (owner, messageUser, userName, chat_id) VALUES (?, ?, ?, ?)';
   const [rows] = await database
@@ -55,7 +60,7 @@ const createMessage = async (chatId, owner, messageUser, userName) => {
     .query(query, [owner, messageUser, userName, chatId]);
 
   const queryChatMessage = 'UPDATE chats SET lastMessage = ? WHERE id = ?';
-  await database.promise().query(queryChatMessage, [messageUser, chatId]);
+  await database.promise().query(queryChatMessage, [messageJSON, chatId]);
 
   const messageId = rows.insertId;
 
@@ -81,7 +86,6 @@ const newMessageArrived = async (chatId, userId) => {
     .promise()
     .query(selectQuery, [chatId, userIdNum]);
 
-
   return rows[0];
 };
 
@@ -89,11 +93,11 @@ const newMessageChecked = async (chatId, userId) => {
   const userIdNum = Number(userId);
   const newMessage = false;
   const query =
-    'UPDATE user_chat SET newMessage = ? WHERE id = ? AND user_id = ?';
+    'UPDATE user_chat SET newMessage = ? WHERE chat_id = ? AND user_id = ?';
   await database.promise().query(query, [newMessage, chatId, userIdNum]);
 
   const selectQuery =
-    'SELECT newMessage FROM chat_user WHERE id = ? AND user_id = ?';
+    'SELECT newMessage FROM user_chat WHERE chat_id = ? AND user_id = ?';
   const [rows] = await database
     .promise()
     .query(selectQuery, [chatId, userIdNum]);

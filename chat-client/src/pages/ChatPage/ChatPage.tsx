@@ -6,7 +6,7 @@ import { selectAuthUserId } from '../../redux/user/userSelectors';
 import { selectAuthUserIsLoggedIn } from '../../redux/user/userSelectors';
 import { useSelector } from 'react-redux';
 import css from './ChatPage.module.css';
-import { getSocket } from '../../services/socketService';
+import { getSocket, resetSocket } from '../../services/socketService';
 import { selectAuthUserData } from '../../redux/user/userSelectors';
 import { logOut } from '../../redux/user/userOperations';
 import { AppDispatch } from '../../redux/store';
@@ -17,6 +17,7 @@ import Notiflix from 'notiflix';
 
 type onlineUsers = {
   id: number | null | undefined;
+  username: string;
   userName: string;
 };
 
@@ -26,15 +27,19 @@ type messageType = {
 };
 type member = {
   id: number | null | undefined;
-  userName: string | null;
+  userName?: string | null;
+  username?: string | null;
 };
 export type chatData = {
-  id: string;
+  id: string | null;
   name: string;
   owner: string | '';
   members: member[] | [];
   messages: messageType[] | [];
-  lastMessage: string;
+  lastMessage: {
+    newMessage: string;
+    user: string;
+  };
   isNewMessageArrived?: boolean;
 };
 
@@ -44,31 +49,33 @@ type errorType = {
   type: string;
 };
 export const ChatPage = () => {
-  //dodać fetcha wszystkich userów zamiast tylko tych zalogowanych, Ci zalogowani beda wykorzsytywaani by dodać że są zalgoowani poprzez wyszukanie ich w chatUsers
   const dispatch: AppDispatch = useDispatch();
-  const socket = getSocket();
-  // const socketReady = useSelector(selectSocketReady);
+
+  const [socket, setSocket] = useState(getSocket());
   const userName = useSelector(selectAuthUserUsername);
   const userId = useSelector(selectAuthUserId);
   const isLoggedIn = useSelector(selectAuthUserIsLoggedIn);
   const user = useSelector(selectAuthUserData);
 
-  const [socketReady, setSocketReady] = useState(false);
   const [users, setUsers] = useState<onlineUsers[] | []>([]);
+  const [onlineUsers, setOnlineUsers] = useState<onlineUsers[] | []>([]);
   const [chatName, setChatName] = useState('');
   const [error, setError] = useState<errorType | null>(null);
   const [chatUsers, setChatUsers] = useState<member[]>([
-    { id: userId, userName: userName },
+    { id: userId, username: userName },
   ]);
 
   const [chats, setChats] = useState<chatData[] | []>([]);
   const [activeChat, setActiveChat] = useState<chatData | null>({
-    id: '',
+    id: null,
     owner: '',
     name: '',
     members: [],
     messages: [],
-    lastMessage: '',
+    lastMessage: {
+      newMessage: '',
+      user: '',
+    },
     isNewMessageArrived: false,
   });
   const [chatsFilter, setChatsFilter] = useState('');
@@ -77,7 +84,7 @@ export const ChatPage = () => {
     if (chat.members && chat.members.length > 0) {
       return chat.members.some(member => {
         return member
-          .userName!.toLowerCase()
+          .username!.toLowerCase()
           .includes(chatsFilter.toLowerCase());
       });
     }
@@ -85,46 +92,48 @@ export const ChatPage = () => {
   });
 
   const filteredUsers = users.filter(user =>
-    user.userName!.toLowerCase().includes(usersFilter.toLowerCase())
+    user.username!.toLowerCase().includes(usersFilter.toLowerCase())
   );
 
   useEffect(() => {
     const initializeSocketAndRedux = async () => {
-      if (isLoggedIn) {
-        const socket = initializeSocket({ userName, userId });
+      if (isLoggedIn && userName !== null && userId !== null) {
+        const socketNET = await initializeSocket({ userName, userId });
         await new Promise<void>(resolve => {
-          socket.on('connect', () => {
+          socketNET!.on('connect', () => {
             resolve();
           });
         });
 
-        if (socket !== undefined) {
-          setSocketReady(true);
+        if (socketNET) {
+          setSocket(socketNET);
         }
       }
     };
 
     initializeSocketAndRedux();
-    // if (socketReady) navigate('/chat');
   }, [isLoggedIn]);
+
   useEffect(() => {
-    socket?.emit('userRooms', userId);
-    socket?.emit('getLoggedUsers');
+    if (socket != null) {
+      socket?.emit('userRooms', userId);
+      socket?.emit('getLoggedUsers');
+      socket?.emit('getAllUsers');
+    }
   }, [socket]);
   useEffect(() => {
     if (socket) {
       socket!.on('chatError', (data: any) => {
         setError(data);
+        console.error(error);
         Notiflix.Notify.info(data.message);
       });
-      socket!.on('onlineUsers', (data: any) => {
-        console.log(data);
-        setUsers(data);
+      socket!.on('getAllUsers', (data: any) => {
+        setUsers(data.allUsers);
       });
-      // socket!.on('newMessageArrived', (data: any) => {
-      //   const foundChat = chats.find(chat => chat.id === data.chatId);
-      //   foundChat!.isNewMessageArrived = data.isNewMessageArrived;
-      // });
+      socket!.on('onlineUsers', (data: any) => {
+        setOnlineUsers(data.onlineUsers);
+      });
 
       socket.on('userRooms', async (data: any) => {
         const chatsData = data.map((chat: any) => {
@@ -140,7 +149,6 @@ export const ChatPage = () => {
           return newChat;
         });
         setChats(chatsData);
-        console.log('userRoomsd', chats);
       });
 
       socket!.on('createChat', async (data: any) => {
@@ -150,17 +158,13 @@ export const ChatPage = () => {
           owner: data.userId,
           members: data.chatUsers,
           messages: [],
-          lastMessage: '',
+          lastMessage: {
+            newMessage: '',
+            user: '',
+          },
         };
         setChats(prevVal => [...prevVal, chat]);
       });
-
-      // return () => {
-      //   socket!.off('message');
-      //   socket!.off('user');
-      //   socket!.emit('leave');
-      //   socket!.close();
-      // };
     }
   }, [socket]);
   useEffect(() => {
@@ -170,21 +174,29 @@ export const ChatPage = () => {
         if (chats && foundChat) {
           foundChat!.lastMessage = data.messageData;
           const indexOfChat = chats.findIndex(chat => chat.id == foundChat.id);
-          const newChats = chats.splice(indexOfChat, 1, foundChat);
-          setChats(newChats);
+          chats.splice(indexOfChat, 1, foundChat);
+          setChats([...chats]);
         }
       });
-    }
-    if (chats.length > 0) {
+
       socket!.on('newMessageArrived', (data: any) => {
-        console.log(data);
-        console.log(chats);
         const foundChat = chats.find(chat => chat.id == data.chatId);
         if (chats && foundChat) {
           foundChat!.isNewMessageArrived = data.isNewMessageArrived;
           const indexOfChat = chats.findIndex(chat => chat.id == foundChat.id);
-          const newChats = chats.splice(indexOfChat, 1, foundChat);
-          setChats(newChats);
+          chats.splice(indexOfChat, 1, foundChat);
+          setChats([...chats]);
+        }
+      });
+
+      socket!.on('newMessageChecked', (data: any) => {
+        const foundChat = chats.find(chat => chat.id == data.chatId);
+        if (chats && foundChat) {
+          const newMessageFlag = false;
+          foundChat!.isNewMessageArrived = newMessageFlag;
+          const indexOfChat = chats.findIndex(chat => chat.id == foundChat.id);
+          chats.splice(indexOfChat, 1, foundChat);
+          setChats([...chats]);
         }
       });
     }
@@ -202,11 +214,11 @@ export const ChatPage = () => {
       const roomName = await nanoid();
       socket!.emit('createChat', { userId, roomName, chatUsers, chatName });
 
-      setChatUsers([{ id: userId, userName: userName }]);
+      setChatUsers([{ id: userId, username: userName }]);
     }
   };
 
-  const handleStartChat = async (chatId: string) => {
+  const handleStartChat = async (chatId: string | null) => {
     if (socket) {
       const chatToActive = chats.find(chat => chat.id === chatId);
 
@@ -224,15 +236,14 @@ export const ChatPage = () => {
     if (socket) {
       dispatch(logOut());
       socket.emit('leaveServer');
+      setSocket(null);
+      resetSocket();
     }
   };
 
   return (
     <div className={css.chatWrapper}>
-      <button onClick={() => console.log(chats)}>chats</button>
       <div className={css.chatBox}>
-        {/* <button onClick={() => console.log(filteredChats)}>chaty</button> */}
-
         <ul className={css.userNav}>
           <li>
             <p>{user.username}</p>
@@ -259,23 +270,29 @@ export const ChatPage = () => {
             <ul className={css.userChats}>
               {filteredChats.map(chat => (
                 <li
-                  className={css.userChatsItem}
+                  className={`${css.userChatsItem} ${
+                    chat.id == activeChat?.id && css.activeChat
+                  }`}
                   key={chat.id}
-                  onClick={() => handleStartChat(chat!.id)}
+                  onClick={() => handleStartChat(chat.id)}
                 >
                   {chat.name !== '' ? <p>{chat.name}</p> : null}
                   <ul className={css.userChatMembers}>
                     {chat.members?.map(member => (
                       <li key={member.id}>
-                        <p>{member.userName}</p>
+                        <p>{member.username}</p>
                       </li>
                     ))}
                   </ul>
-                  <p
-                    className={`${chat.isNewMessageArrived && css.newMessage}`}
-                  >
-                    {chat.lastMessage}
-                  </p>
+                  {chat.lastMessage && (
+                    <p
+                      className={`${css.newMessageText} ${
+                        chat.isNewMessageArrived && css.newMessage
+                      }`}
+                    >
+                      {chat.lastMessage.user}: {chat.lastMessage.newMessage}
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>
@@ -300,12 +317,12 @@ export const ChatPage = () => {
             onChange={e => setUsersFilter(e.target.value)}
             value={usersFilter}
           />
-          <p>Users online: {users.length}</p>
+          <p>Users online: {onlineUsers.length}</p>
 
           <div className={css.users}>
             {users &&
               filteredUsers.map(user => (
-                <div key={user.id}>
+                <div className={css.loggedUser} key={user.id}>
                   <input
                     type="checkbox"
                     onChange={() => handleUserSelection(user)}
@@ -313,13 +330,23 @@ export const ChatPage = () => {
                       chatUsers.some(u => u.id === user.id) || user.id == userId
                     }
                   />
-                  {user.userName}
+                  <div className={css.userChat}>
+                    <p>{user.username}</p>
+                    {onlineUsers.some(
+                      onlineUser => onlineUser.id == user.id
+                    ) ? (
+                      <span className={css.logged}></span>
+                    ) : (
+                      <span className={css.notLogged}></span>
+                    )}
+                  </div>
                 </div>
               ))}
           </div>
         </div>
         <div>
           <input
+            className={css.chatNameInput}
             type="text"
             placeholder="Chat name"
             name="newChatName"

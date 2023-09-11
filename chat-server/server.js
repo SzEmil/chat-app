@@ -9,9 +9,11 @@ import { Server } from 'socket.io';
 import { createServer } from 'http';
 import http from 'http';
 import serviceChats from './service/serviceChats.js';
+serviceUser;
 
 const app = express();
 import './config/config-passport.js';
+import serviceUser from './service/serviceUser.js';
 
 const httpServer = http.createServer(app);
 
@@ -37,15 +39,18 @@ app.use('/api', router);
 const users = {};
 const rooms = {};
 
-function updateOnlineUsers() {
+async function updateOnlineUsers() {
   const onlineUsers = Object.values(users);
-  io.emit('onlineUsers', onlineUsers);
+  io.emit('onlineUsers', { onlineUsers });
+}
+async function updateAllUsers() {
+  const allUsers = await serviceUser.getUsersData();
+  io.emit('getAllUsers', { allUsers });
 }
 
 io.on('connection', client => {
   const userName = client.handshake.query.userName;
   const userId = client.handshake.query.userId;
-
   const broadcast = (event, data) => {
     client.emit(event, data);
     client.broadcast.emit(event, data);
@@ -55,8 +60,9 @@ io.on('connection', client => {
   console.log('New client connected');
   users[userId] = { id: userId, userName };
   updateOnlineUsers();
-
+  updateAllUsers();
   client.on('getLoggedUsers', updateOnlineUsers);
+  client.on('getAllUsers', updateAllUsers);
 
   client.on('userRooms', async userId => {
     const existingChats = await serviceChats.getUserChats(userId);
@@ -65,6 +71,15 @@ io.on('connection', client => {
 
   console.log(`Number of connected clients: ${io.engine.clientsCount}`);
   broadcast('activeUsers', io.engine.clientsCount);
+
+  client.on('newMessageChecked', async (chatId, userId) => {
+    const isNewMessageArrived = await serviceChats.newMessageChecked(
+      chatId,
+      userId
+    );
+
+    client.emit('newMessageChecked', { isNewMessageArrived, chatId });
+  });
 
   client.on('createChat', async ({ userId, roomName, chatUsers, chatName }) => {
     const existingChats = await serviceChats.getUserChats(userId);
@@ -180,12 +195,15 @@ io.on('connection', client => {
     );
 
     const chatId = message.chatId;
-    const messageData = message.messageUser;
+    const messageData = {
+      newMessage: message.messageUser,
+      user: message.userName,
+    };
     for (const chatMember of chatMembers) {
       const ownerSocket = io.sockets.sockets[chatMember.id];
-      ownerSocket.emit('newMessageDataArrived', { messageData, chatId });
+      if (ownerSocket)
+        ownerSocket.emit('newMessageDataArrived', { messageData, chatId });
       if (chatMember.id != message.owner) {
-
         const isNewMessageArrived = await serviceChats.newMessageArrived(
           message.chatId,
           chatMember.id
@@ -220,6 +238,9 @@ io.on('connection', client => {
   client.on('leaveServer', () => {
     console.log('Client disconnected');
     delete users[userId];
+    if (io.sockets.sockets[userId]) {
+      io.sockets.sockets[userId].disconnect(true);
+    }
     delete io.sockets.sockets[userId];
     updateOnlineUsers();
 
@@ -231,6 +252,9 @@ io.on('connection', client => {
   client.on('disconnect', () => {
     console.log('Client disconnected');
     delete users[userId];
+    if (io.sockets.sockets[userId]) {
+      io.sockets.sockets[userId].disconnect(true);
+    }
     delete io.sockets.sockets[userId];
     updateOnlineUsers();
 

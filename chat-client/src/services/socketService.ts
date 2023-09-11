@@ -13,15 +13,20 @@ const initializeSocket = ({
     const socket = io('http://localhost:3001', {
       query: { userName, userId },
     });
+    console.log('dolaczam do gry');
     socket.emit('join');
     socketInstance = socket;
-  }
 
-  return socketInstance;
+    return socketInstance;
+  }
 };
 
 const getSocket = () => {
   return socketInstance;
 };
 
-export { initializeSocket, getSocket };
+const resetSocket = () => {
+  socketInstance = null;
+};
+
+export { initializeSocket, getSocket, resetSocket };

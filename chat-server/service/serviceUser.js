@@ -11,7 +11,17 @@ const getUsers = async () => {
     throw e;
   }
 };
+const getUsersData = async () => {
+  const query = 'SELECT id, username FROM users';
+  try {
+    const [rows] = await database.promise().query(query);
 
+    return rows;
+  } catch (e) {
+    console.log(e);
+    throw e;
+  }
+};
 const findUserById = async userId => {
   const query = 'SELECT * FROM users WHERE id = ?';
   try {
@@ -59,6 +69,7 @@ const serviceUser = {
   findUserByEmail,
   updateUserToken,
   getUsers,
+  getUsersData
 };
 
 export default serviceUser;

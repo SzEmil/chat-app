@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import css from './ChatForm.module.css';
 import { chatData } from '../../pages/ChatPage/ChatPage';
 
@@ -24,7 +24,8 @@ type chatProps = {
 export const Chatform = ({ socket, chat, userName, user }: chatProps) => {
   const [messagesArr, setMessagesArr] = useState<messageType[]>([]);
   const [messageUser, setMessageUser] = useState('');
-  const [lastMessageSeen, setLastMessageSeen] = useState(false);
+
+  const lastMessageRef = useRef<HTMLLIElement>(null);
 
   const cutDate = (date: string | null | undefined) => {
     const year = date!.slice(0, 10);
@@ -32,6 +33,25 @@ export const Chatform = ({ socket, chat, userName, user }: chatProps) => {
 
     return `${year}  ${time}`;
   };
+
+  useEffect(() => {
+    if (lastMessageRef.current) {
+      const observer = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            console.log('widze wiadomość');
+            socket.emit('newMessageChecked', chat!.id, user.id);
+          }
+        });
+      });
+
+      observer.observe(lastMessageRef.current);
+
+      return () => {
+        observer.disconnect();
+      };
+    }
+  }, [messagesArr]);
 
   useEffect(() => {
     socket.emit('getChatMessages', chat!.id);
@@ -46,8 +66,7 @@ export const Chatform = ({ socket, chat, userName, user }: chatProps) => {
       setMessagesArr(data);
     });
 
-    socket.on('endChat', async (data: any) => {
-      console.log('konczymy czat');
+    socket.on('endChat', async () => {
       setMessagesArr([]);
     });
   }, []);
@@ -87,22 +106,32 @@ export const Chatform = ({ socket, chat, userName, user }: chatProps) => {
             </ul>
           )}
         </div>
-        {messagesArr.length === 0 && chat!.id ? (
-          <p>Say hello</p>
-        ) : (
-          <ul className={css.messageList}>
-            {messagesArr.map((message, index) => (
-              <li className={`${css.messageBox}`} key={index}>
-                <div className={css.messageWrapper}>
-                  <div className={css.message}>
-                    <p>{message.userName}</p>
-                    <p className={css.messageText}>{message.messageUser}</p>
-                  </div>
-                  <p>{cutDate(message.created_at)}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
+        {chat!.id !== null && (
+          <>
+            {messagesArr.length === 0 && chat!.id ? (
+              <p>Say hello</p>
+            ) : (
+              <ul className={css.messageList}>
+                {messagesArr.map((message, index) => (
+                  <li
+                    className={`${css.messageBox}`}
+                    key={index}
+                    ref={
+                      index === messagesArr.length - 1 ? lastMessageRef : null
+                    }
+                  >
+                    <div className={css.messageWrapper}>
+                      <div className={css.message}>
+                        <p>{message.userName}</p>
+                        <p className={css.messageText}>{message.messageUser}</p>
+                      </div>
+                      <p>{cutDate(message.created_at)}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </div>
       <form onSubmit={handleSubmit} className={css.sendMessageForm}>
