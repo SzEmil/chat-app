@@ -2,7 +2,7 @@ import { io, Socket } from 'socket.io-client';
 
 let socketInstance: Socket | null = null;
 // const socketLink = 'http://localhost:3001'
-const socketLink = 'https://szemil.github.io/chat-app/'
+const socketLink = 'https://chat-app-vkdo.onrender.com'
 const initializeSocket = ({
   userName,
   userId,
