@@ -97,7 +97,7 @@ io.on('connection', client => {
     });
 
     const existingChat = existingChats.find(room => {
-      const existingChatUsers = room.clients || [];
+      const existingChatUsers = JSON.parse(room.clients) || [];
       if (
         existingChatUsers.length === chatUsers.length &&
         existingChatUsers.every(user =>
@@ -129,12 +129,12 @@ io.on('connection', client => {
           userId
         );
 
-        newChat.clients.forEach(client => {
+        JSON.parse(newChat.clients).forEach(client => {
           const userSocket = io.sockets.sockets[client.id];
           if (userSocket) {
             userSocket.emit('createChat', {
               roomName: newChat.id,
-              chatUsers: newChat.clients,
+              chatUsers: JSON.parse(newChat.clients),
               userId: newChat.owner,
               chatName: newChat.chatname,
               lastMessage: '',

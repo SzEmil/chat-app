@@ -136,12 +136,13 @@ export const ChatPage = () => {
       });
 
       socket.on('userRooms', async (data: any) => {
+
         const chatsData = data.map((chat: any) => {
           const newChat: chatData = {
             id: chat.id,
             name: chat.chatName,
             owner: chat.owner,
-            members: chat.clients,
+            members: JSON.parse(chat.clients),
             messages: [],
             lastMessage: chat.lastMessage,
             isNewMessageArrived: chat.newMessage,
