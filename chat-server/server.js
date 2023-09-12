@@ -19,7 +19,8 @@ const httpServer = http.createServer(app);
 
 const socketOrigin = [
   'http://localhost:5173',
-  'http://localhost:5173',
+  'https://szemil.github.io',
+  'https://chat-app-vkdo.onrender.com',
   'https://szemil.github.io/chat-app/',
 ];
 //const socketOrigin = 'https://szemil.github.io/chat-app/';
