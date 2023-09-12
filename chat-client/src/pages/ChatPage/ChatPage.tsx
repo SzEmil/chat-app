@@ -136,7 +136,6 @@ export const ChatPage = () => {
       });
 
       socket.on('userRooms', async (data: any) => {
-
         const chatsData = data.map((chat: any) => {
           const newChat: chatData = {
             id: chat.id,
@@ -144,7 +143,7 @@ export const ChatPage = () => {
             owner: chat.owner,
             members: JSON.parse(chat.clients),
             messages: [],
-            lastMessage: chat.lastMessage,
+            lastMessage: JSON.parse(chat.lastMessage),
             isNewMessageArrived: chat.newMessage,
           };
           return newChat;
