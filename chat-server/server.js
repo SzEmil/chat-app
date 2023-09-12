@@ -17,15 +17,19 @@ import serviceUser from './service/serviceUser.js';
 
 const httpServer = http.createServer(app);
 
-// const socketOrigin = 'http://localhost:5173';
-const socketOrigin = 'https://szemil.github.io/chat-app/';
+const socketOrigin = [
+  'http://localhost:5173',
+  'http://localhost:5173',
+  'https://szemil.github.io/chat-app/',
+];
+//const socketOrigin = 'https://szemil.github.io/chat-app/';
 const io = new Server(httpServer, {
   cors: {
     origin: socketOrigin,
     methods: ['GET', 'POST'],
   },
 });
-
+//https://szemil.github.io
 dotenv.config();
 const formatsLogger = app.get('env') === 'development' ? 'dev' : 'short';
 
