@@ -1,12 +1,18 @@
 import database from '../helpers/dbConnection.js';
 
-const createNewChat = async (chatName, clients, owner) => {
+const createNewChat = async (chatName, clients, owner, userName) => {
   const clientsJson = JSON.stringify(clients);
-  const query = 'INSERT INTO chats (chatName, clients, owner) VALUES (?, ?, ?)';
+  const lastMessage = {
+    newMessage: 'New Chat Created',
+    user: userName,
+  };
+  const lastMessageString = JSON.stringify(lastMessage);
+  const query =
+    'INSERT INTO chats (chatName, clients, owner, lastMessage) VALUES (?, ?, ?, ?)';
   try {
     const [rows] = await database
       .promise()
-      .query(query, [chatName, clientsJson, owner]);
+      .query(query, [chatName, clientsJson, owner, lastMessageString]);
 
     const chatId = rows.insertId;
 

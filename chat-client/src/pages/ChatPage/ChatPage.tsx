@@ -38,7 +38,7 @@ export type chatData = {
   messages: messageType[] | [];
   lastMessage: {
     newMessage: string;
-    user: string;
+    user: string | null;
   };
   isNewMessageArrived?: boolean;
 };
@@ -137,6 +137,7 @@ export const ChatPage = () => {
 
       socket.on('userRooms', async (data: any) => {
         const chatsData = data.map((chat: any) => {
+
           const newChat: chatData = {
             id: chat.id,
             name: chat.chatName,
@@ -152,16 +153,14 @@ export const ChatPage = () => {
       });
 
       socket!.on('createChat', async (data: any) => {
+        console.log(data);
         const chat: chatData = {
           id: data.roomName,
           name: data.chatName,
           owner: data.userId,
           members: data.chatUsers,
           messages: [],
-          lastMessage: {
-            newMessage: '',
-            user: '',
-          },
+          lastMessage: data.lastMessage,
         };
         setChats(prevVal => [...prevVal, chat]);
       });
@@ -212,7 +211,13 @@ export const ChatPage = () => {
   const createChat = async () => {
     if (socket) {
       const roomName = await nanoid();
-      socket!.emit('createChat', { userId, roomName, chatUsers, chatName });
+      socket!.emit('createChat', {
+        userId,
+        roomName,
+        chatUsers,
+        chatName,
+        userName,
+      });
 
       setChatUsers([{ id: userId, username: userName }]);
     }

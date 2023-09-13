@@ -30,7 +30,7 @@ const io = new Server(httpServer, {
     methods: ['GET', 'POST'],
   },
 });
-//https://szemil.github.io
+
 dotenv.config();
 const formatsLogger = app.get('env') === 'development' ? 'dev' : 'short';
 
@@ -88,71 +88,75 @@ io.on('connection', client => {
     client.emit('newMessageChecked', { isNewMessageArrived, chatId });
   });
 
-  client.on('createChat', async ({ userId, roomName, chatUsers, chatName }) => {
-    const existingChats = await serviceChats.getUserChats(userId);
-    const existingRoom = Object.values(rooms).find(room => {
-      const existingChatUsers = room.clients || [];
-      if (
-        existingChatUsers.length === chatUsers.length &&
-        existingChatUsers.every(user =>
-          chatUsers.some(chatUser => chatUser.id == user.id)
-        )
-      ) {
-        return true;
-      }
-      return false;
-    });
+  client.on(
+    'createChat',
+    async ({ userId, roomName, chatUsers, chatName, userName }) => {
+      const existingChats = await serviceChats.getUserChats(userId);
+      const existingRoom = Object.values(rooms).find(room => {
+        const existingChatUsers = room.clients || [];
+        if (
+          existingChatUsers.length === chatUsers.length &&
+          existingChatUsers.every(user =>
+            chatUsers.some(chatUser => chatUser.id == user.id)
+          )
+        ) {
+          return true;
+        }
+        return false;
+      });
 
-    const existingChat = existingChats.find(room => {
-      const existingChatUsers = JSON.parse(room.clients) || [];
-      if (
-        existingChatUsers.length === chatUsers.length &&
-        existingChatUsers.every(user =>
-          chatUsers.some(chatUser => chatUser.id == user.id)
-        )
-      ) {
-        return true;
-      }
-      return false;
-    });
+      const existingChat = existingChats.find(room => {
+        const existingChatUsers = JSON.parse(room.clients) || [];
+        if (
+          existingChatUsers.length === chatUsers.length &&
+          existingChatUsers.every(user =>
+            chatUsers.some(chatUser => chatUser.id == user.id)
+          )
+        ) {
+          return true;
+        }
+        return false;
+      });
 
-    if (existingRoom || existingChat) {
-      const userSocket = io.sockets.sockets[userId];
-      if (userSocket) {
-        const error = {
-          message: `Chat with these ${chatUsers.map(
-            user => user.userName
-          )} already exists.`,
-          data: chatUsers,
-          type: 'chat already exists',
-        };
-        userSocket.emit('chatError', error);
-      }
-    } else {
-      try {
-        const newChat = await serviceChats.createNewChat(
-          chatName,
-          chatUsers,
-          userId
-        );
+      if (existingRoom || existingChat) {
+        const userSocket = io.sockets.sockets[userId];
+        if (userSocket) {
+          const error = {
+            message: `Chat with these ${chatUsers.map(
+              user => user.userName
+            )} already exists.`,
+            data: chatUsers,
+            type: 'chat already exists',
+          };
+          userSocket.emit('chatError', error);
+        }
+      } else {
+        try {
+          const newChat = await serviceChats.createNewChat(
+            chatName,
+            chatUsers,
+            userId,
+            userName
+          );
 
-        JSON.parse(newChat.clients).forEach(client => {
-          const userSocket = io.sockets.sockets[client.id];
-          if (userSocket) {
-            userSocket.emit('createChat', {
-              roomName: newChat.id,
-              chatUsers: JSON.parse(newChat.clients),
-              userId: newChat.owner,
-              chatName: newChat.chatname,
-              lastMessage: '',
-            });
-          }
-        });
-      } catch (e) {
-        throw e.message;
+          JSON.parse(newChat.clients).forEach(client => {
+            const userSocket = io.sockets.sockets[client.id];
+            if (userSocket) {
+              userSocket.emit('createChat', {
+                roomName: newChat.id,
+                chatUsers: JSON.parse(newChat.clients),
+                userId: newChat.owner,
+                chatName: newChat.chatname,
+                lastMessage: JSON.parse(newChat.lastMessage),
+              });
+            }
+          });
+        } catch (e) {
+          throw e.message;
+        }
       }
     }
-  });
+  );
 
   client.on('openChat', ({ userId, roomName, chatUsers }) => {
     const existingRoom = Object.values(rooms).find(room => {
