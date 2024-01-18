@@ -22,6 +22,7 @@ const socketOrigin = [
   'https://szemil.github.io',
   'https://chat-app-vkdo.onrender.com',
   'https://szemil.github.io/chat-app/',
+  'http://localhost:3306'
 ];
 //const socketOrigin = 'https://szemil.github.io/chat-app/';
 const io = new Server(httpServer, {
@@ -294,15 +295,38 @@ app.use((err, _, res, __) => {
   });
 });
 
-const PORT = process.env.PORT || 3001;
+const PORT = 3001;
 
-database.connect(error => {
-  if (error) {
-    console.error('Error during connection to database: ' + error);
-  } else {
-    console.log('Database connected');
-    httpServer.listen(PORT, () => {
-      console.log(`Serwer uruchomiony na porcie ${PORT}`);
-    });
-  }
+// database.connect(error => {
+//   if (error) {
+//     console.error('Error during connection to database: ' + error);
+//   } else {
+//     console.log('Database connected');
+//     httpServer.listen(PORT, () => {
+//       console.log(`Serwer uruchomiony na porcie ${PORT}`);
+//     });
+//   }
+// });
+
+function connectWithRetry(callback) {
+  database.connect(error => {
+    if (error) {
+      console.error('Error during connection to database: ' + error);
+
+      // Poczekaj przed ponowną próbą połączenia
+      setTimeout(() => {
+        console.log('Retrying connection to the database...');
+        connectWithRetry(callback);
+      }, 5000); // Poczekaj 5 sekund przed ponowną próbą (możesz dostosować czas)
+    } else {
+      console.log('Database connected');
+      callback();
+    }
+  });
+}
+
+connectWithRetry(() => {
+  httpServer.listen(PORT, () => {
+    console.log(`Serwer uruchomiony na porcie ${PORT}`);
+  });
 });
